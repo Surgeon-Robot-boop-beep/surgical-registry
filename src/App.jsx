@@ -306,6 +306,104 @@ function renderVal(field, value) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PATIENT VIEW COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+function PatientView({ settings, cases, templates, statsFor, getTpl }) {
+  const [selTpl, setSelTpl] = useState(null);
+  const sv = settings.patient || {};
+  const tplsWithCases = templates.filter(t => cases.some(c => c.templateId === t.id));
+  const viewCases = selTpl ? cases.filter(c => c.templateId === selTpl) : cases;
+  const s = statsFor(viewCases);
+  const tplObj = selTpl ? getTpl(selTpl) : null;
+
+  const satCounts = {Excellent:0, Good:0, Fair:0, Poor:0};
+  viewCases.forEach(c => (c.followUps||[]).forEach(fu => {
+    if(fu.fields.satisfaction) satCounts[fu.fields.satisfaction] = (satCounts[fu.fields.satisfaction]||0)+1;
+  }));
+  const totalSat = Object.values(satCounts).reduce((a,b)=>a+b,0);
+
+  return (
+    <div style={{maxWidth:900,margin:"0 auto"}}>
+      {/* Hero */}
+      <div style={{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:"1px solid #93c5fd",borderRadius:16,padding:"32px 36px",marginBottom:24,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",right:-20,top:-20,width:160,height:160,borderRadius:"50%",background:"#ffffff",opacity:0.08}} />
+        <div style={{fontSize:10,color:"#bfdbfe",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:8}}>Surgeon Outcomes · General Surgery</div>
+        <div style={{fontSize:28,fontWeight:700,color:"#ffffff",letterSpacing:"-0.02em",marginBottom:10}}>{settings.surgeonName||"Surgical Outcomes"}</div>
+        {sv.introText&&<div style={{fontSize:13,color:"#dbeafe",maxWidth:620,lineHeight:1.7,marginBottom:16}}>{sv.introText}</div>}
+        <div style={{display:"flex",gap:28}}>
+          {[[cases.length,"Cases Performed"],[tplsWithCases.length,"Procedure Types"],["ACS","Member"]].map(([v,l])=>(
+            <div key={l}><div style={{fontSize:10,color:"#bfdbfe",textTransform:"uppercase",letterSpacing:"0.12em"}}>{l}</div><div style={{fontSize:22,fontWeight:700,color:"#ffffff",fontFamily:"'JetBrains Mono',monospace"}}>{v}</div></div>
+          ))}
+        </div>
+      </div>
+
+      {/* Procedure picker */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+        <button onClick={()=>setSelTpl(null)} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${!selTpl?"#1d4ed8":"#cbd5e1"}`,background:!selTpl?"#1d4ed8":"#ffffff",color:!selTpl?"#ffffff":"#64748b",fontSize:13,fontWeight:!selTpl?600:400,cursor:"pointer"}}>All Procedures</button>
+        {tplsWithCases.map(t=>(
+          <button key={t.id} onClick={()=>setSelTpl(t.id)} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${selTpl===t.id?t.color:"#cbd5e1"}`,background:selTpl===t.id?t.color+"22":"#ffffff",color:selTpl===t.id?t.color:"#64748b",fontSize:13,fontWeight:selTpl===t.id?600:400,cursor:"pointer"}}>
+            {t.emoji} {t.patientName||t.name}
+          </button>
+        ))}
+      </div>
+
+      {tplObj?.patientDesc&&<div style={{fontSize:13,color:"#475569",lineHeight:1.7,marginBottom:20,padding:"14px 18px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>{tplObj.patientDesc}</div>}
+
+      {/* KPIs row 1 */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+        {sv.showVolume&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Cases Performed</div><div style={{fontSize:32,fontWeight:700,color:"#1e293b",fontFamily:"'JetBrains Mono',monospace"}}>{s.n}</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{selTpl?`${tplObj?.patientName||tplObj?.name} procedures`:"across all procedure types"}</div></div>}
+        {sv.showComplications&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Complication Rate</div><div style={{fontSize:32,fontWeight:700,color:s.compPct>10?"#f59e0b":"#10b981",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.comps.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Any complication requiring attention</div></div>}
+        {sv.showReadmission&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>30-Day Readmission</div><div style={{fontSize:32,fontWeight:700,color:s.readmitPct>8?"#f97316":"#10b981",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.readmits.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Unplanned return to hospital</div></div>}
+      </div>
+
+      {/* KPIs row 2 */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+        {sv.showLOS&&s.avgLOS>0&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Average Hospital Stay</div><div style={{fontSize:28,fontWeight:700,color:"#1e293b",fontFamily:"'JetBrains Mono',monospace"}}>{s.avgLOS.toFixed(1)} days</div></div>}
+        {sv.showConversion&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Minimally Invasive Rate</div><div style={{fontSize:28,fontWeight:700,color:"#0284c7",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.mis.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Laparoscopic or robotic approach</div></div>}
+        {sv.showCost&&s.avgCost>0&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Average Case Cost</div><div style={{fontSize:28,fontWeight:700,color:"#16a34a",fontFamily:"'JetBrains Mono',monospace"}}>{dollar(Math.round(s.avgCost))}</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Facility-level cost data</div></div>}
+      </div>
+
+      {/* Satisfaction */}
+      {sv.showSatisfaction&&totalSat>0&&(
+        <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",marginBottom:20,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+          <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:14}}>Patient Satisfaction (from follow-up data)</div>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+            {Object.entries(satCounts).filter(([,v])=>v>0).map(([k,v])=>{
+              const col=k==="Excellent"?"#10b981":k==="Good"?"#84cc16":k==="Fair"?"#f59e0b":"#ef4444";
+              return <div key={k} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:32,height:32,borderRadius:8,background:col+"22",border:`1px solid ${col}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:col}}>{Math.round(v/totalSat*100)}%</div><span style={{fontSize:12,color:"#64748b"}}>{k}</span></div>;
+            })}
+            <div style={{fontSize:11,color:"#94a3b8",alignSelf:"center"}}>Based on {totalSat} follow-up responses</div>
+          </div>
+        </div>
+      )}
+
+      {/* Volume by procedure */}
+      {!selTpl&&sv.showVolume&&(
+        <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",marginBottom:20,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+          <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:14}}>Experience by Procedure Type</div>
+          {tplsWithCases.map(t=>{
+            const cnt=cases.filter(c=>c.templateId===t.id).length;
+            return (
+              <div key={t.id} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:12.5,color:"#475569"}}>{t.emoji} {t.patientName||t.name}</span>
+                  <span style={{fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:t.color}}>{cnt} cases</span>
+                </div>
+                <div style={{height:8,background:"#f1f5f9",borderRadius:4}}><div style={{width:`${(cnt/cases.length)*100}%`,height:"100%",background:t.color,borderRadius:4,opacity:0.8}} /></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,padding:"14px 18px",fontSize:11,color:"#64748b",lineHeight:1.7}}>
+        <strong style={{color:"#475569"}}>About this data:</strong> All figures are self-reported and de-identified. Complication rates reflect my personal logged experience and should be understood in context of each patient's individual risk factors and case complexity. This information is provided to support informed consent and shared decision-making — not as a guarantee of outcome. For questions, please speak with me directly.
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function SurgicalRegistry() {
@@ -1135,97 +1233,7 @@ Pick the best matching template. Fill every field you can infer. Use null for ge
         {/* ══════════════════════════════════════════════════════════════════════
             PATIENT VIEW
         ══════════════════════════════════════════════════════════════════════ */}
-        {page==="patient" && (()=>{
-          const sv=settings.patient||{};
-          const [selTpl,setSelTpl]=useState(null);
-          const tplsWithCases=templates.filter(t=>cases.some(c=>c.templateId===t.id));
-          const viewCases=selTpl?cases.filter(c=>c.templateId===selTpl):cases;
-          const s=statsFor(viewCases);
-          const tplObj=selTpl?getTpl(selTpl):null;
-
-          // Satisfaction from follow-ups
-          const satCounts={Excellent:0,Good:0,Fair:0,Poor:0};
-          viewCases.forEach(c=>(c.followUps||[]).forEach(fu=>{if(fu.fields.satisfaction)satCounts[fu.fields.satisfaction]=(satCounts[fu.fields.satisfaction]||0)+1;}));
-          const totalSat=Object.values(satCounts).reduce((a,b)=>a+b,0);
-
-          return (
-            <div style={{maxWidth:900,margin:"0 auto"}}>
-              {/* Hero */}
-              <div style={{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:`1px solid #93c5fd`,borderRadius:16,padding:"32px 36px",marginBottom:24,position:"relative",overflow:"hidden"}}>
-                <div style={{position:"absolute",right:-20,top:-20,width:160,height:160,borderRadius:"50%",background:"#ffffff",opacity:0.08}} />
-                <div style={{fontSize:10,color:"#bfdbfe",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:8}}>Surgeon Outcomes · General Surgery</div>
-                <div style={{fontSize:28,fontWeight:700,color:"#ffffff",letterSpacing:"-0.02em",marginBottom:10}}>{settings.surgeonName||"Surgical Outcomes"}</div>
-                {sv.introText&&<div style={{fontSize:13,color:"#dbeafe",maxWidth:620,lineHeight:1.7,marginBottom:16}}>{sv.introText}</div>}
-                <div style={{display:"flex",gap:28}}>
-                  {[[cases.length,"Cases Performed"],[tplsWithCases.length,"Procedure Types"],["ACS","Member"]].map(([v,l])=>(
-                    <div key={l}><div style={{fontSize:10,color:"#bfdbfe",textTransform:"uppercase",letterSpacing:"0.12em"}}>{l}</div><div style={{fontSize:22,fontWeight:700,color:"#ffffff",fontFamily:"'JetBrains Mono',monospace"}}>{v}</div></div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Procedure picker */}
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-                <button onClick={()=>setSelTpl(null)} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${!selTpl?"#1d4ed8":"#cbd5e1"}`,background:!selTpl?"#1d4ed8":"#ffffff",color:!selTpl?"#ffffff":"#64748b",fontSize:13,fontWeight:!selTpl?600:400}}>All Procedures</button>
-                {tplsWithCases.map(t=>(
-                  <button key={t.id} onClick={()=>setSelTpl(t.id)} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${selTpl===t.id?t.color:"#cbd5e1"}`,background:selTpl===t.id?t.color+"22":"#ffffff",color:selTpl===t.id?t.color:"#64748b",fontSize:13,fontWeight:selTpl===t.id?600:400}}>
-                    {t.emoji} {t.patientName||t.name}
-                  </button>
-                ))}
-              </div>
-
-              {tplObj?.patientDesc&&<div style={{fontSize:13,color:"#475569",lineHeight:1.7,marginBottom:20,padding:"14px 18px",background:"#f0f9ff",borderRadius:10,border:"1px solid #bae6fd"}}>{tplObj.patientDesc}</div>}
-
-              {/* KPIs */}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
-                {sv.showVolume&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Cases Performed</div><div style={{fontSize:32,fontWeight:700,color:"#1e293b",fontFamily:"'JetBrains Mono',monospace"}}>{s.n}</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{selTpl?`${tplObj?.patientName||tplObj?.name} procedures`:"across all procedure types"}</div></div>}
-                {sv.showComplications&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Complication Rate</div><div style={{fontSize:32,fontWeight:700,color:s.compPct>10?"#f59e0b":"#10b981",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.comps.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Any complication requiring attention</div></div>}
-                {sv.showReadmission&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>30-Day Readmission</div><div style={{fontSize:32,fontWeight:700,color:s.readmitPct>8?"#f97316":"#10b981",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.readmits.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Unplanned return to hospital</div></div>}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
-                {sv.showLOS&&s.avgLOS>0&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Average Hospital Stay</div><div style={{fontSize:28,fontWeight:700,color:"#1e293b",fontFamily:"'JetBrains Mono',monospace"}}>{s.avgLOS.toFixed(1)} days</div></div>}
-                {sv.showConversion&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Minimally Invasive Rate</div><div style={{fontSize:28,fontWeight:700,color:"#0284c7",fontFamily:"'JetBrains Mono',monospace"}}>{pct(s.mis.length,s.n)}%</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Laparoscopic or robotic approach</div></div>}
-                {sv.showCost&&s.avgCost>0&&<div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}><div style={{fontSize:10,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:6}}>Average Case Cost</div><div style={{fontSize:28,fontWeight:700,color:"#16a34a",fontFamily:"'JetBrains Mono',monospace"}}>{dollar(Math.round(s.avgCost))}</div><div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Facility-level cost data</div></div>}
-              </div>
-
-              {/* Satisfaction */}
-              {sv.showSatisfaction&&totalSat>0&&(
-                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",marginBottom:20,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:14}}>Patient Satisfaction (from follow-up data)</div>
-                  <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                    {Object.entries(satCounts).filter(([,v])=>v>0).map(([k,v])=>{
-                      const col=k==="Excellent"?"#10b981":k==="Good"?"#84cc16":k==="Fair"?"#f59e0b":"#ef4444";
-                      return <div key={k} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:32,height:32,borderRadius:8,background:col+"22",border:`1px solid ${col}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:col}}>{Math.round(v/totalSat*100)}%</div><span style={{fontSize:12,color:"#64748b"}}>{k}</span></div>;
-                    })}
-                    <div style={{fontSize:11,color:"#94a3b8",alignSelf:"center"}}>Based on {totalSat} follow-up responses</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Volume by procedure (if showing all) */}
-              {!selTpl&&sv.showVolume&&(
-                <div style={{background:"#ffffff",border:"1px solid #e2e8f0",borderRadius:12,padding:"18px 22px",marginBottom:20,boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1e293b",marginBottom:14}}>Experience by Procedure Type</div>
-                  {tplsWithCases.map(t=>{
-                    const cnt=cases.filter(c=>c.templateId===t.id).length;
-                    return (
-                      <div key={t.id} style={{marginBottom:10}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                          <span style={{fontSize:12.5,color:"#475569"}}>{t.emoji} {t.patientName||t.name}</span>
-                          <span style={{fontSize:12,fontFamily:"'JetBrains Mono',monospace",color:t.color}}>{cnt} cases</span>
-                        </div>
-                        <div style={{height:8,background:"#f1f5f9",borderRadius:4}}><div style={{width:`${(cnt/cases.length)*100}%`,height:"100%",background:t.color,borderRadius:4,opacity:0.8}} /></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:10,padding:"14px 18px",fontSize:11,color:"#64748b",lineHeight:1.7}}>
-                <strong style={{color:"#475569"}}>About this data:</strong> All figures are self-reported and de-identified. Complication rates reflect my personal logged experience and should be understood in context of each patient's individual risk factors and case complexity. This information is provided to support informed consent and shared decision-making — not as a guarantee of outcome. For questions, please speak with me directly.
-              </div>
-            </div>
-          );
-        })()}
+        {page==="patient" && <PatientView settings={settings} cases={cases} templates={templates} statsFor={statsFor} getTpl={getTpl} />}
 
         {/* ══════════════════════════════════════════════════════════════════════
             COLLEAGUE VIEW (password protected)
